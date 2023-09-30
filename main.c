@@ -9,6 +9,9 @@
 #include <ctype.h>
 
 int main(int argc, char* argv[]) {
+    //For random purposes
+    srand(time(0));
+    
     //Create pipes for IPC
     int fd1[2]; // parent writes to child; child reads from parent
     int fd2[2]; // child writes to parent; parent reads from child
@@ -195,22 +198,139 @@ int main(int argc, char* argv[]) {
         //Timer length size for timer interrupt
         int timerLength;
         
+        if (argc == 2) {
+            //This is for Online GDB specifically
+            char* timerArgument = argv[1];
+            timerLength = atoi(timerArgument);
+        }
+        else if (argc == 3) {
+            //This is for cslinux1 specifically
+            char* timerArgument = argv[2];
+            timerLength = atoi(timerArgument);
+        }
+        else {
+            printf("Error: Invalid amount of arguments provided.\n");
+            isValid = 1;
+        }
+        
         //To check if the previous instruction accepts an argument
         int dependency = -1;
+        //To restore user dependency after returning from system call
+        int userDependency = -1;
         
         //To check if we are currently in user or system mode
         //User mode = 0 (default)
         //System mode = 1
         int mode = 0;
         
+        //Check how many instructions have executed
+        int instructionsExecuted = 0;
+        
+        //Flag to check if a timeout occurred during an interrupt handler
+        // -1 --> carry on program execution as usual
+        // 1 indicates that an interrupt occurred immediately before the current instruction and a timeout occurred during the interrupt so we need to run the interrupt handler once we return to user mode
+        int timeoutDuringInterrupt = -1;
+        
         //int i = 0;
-        while (isValid == 0 /*&& i < 100 && PC != 2*/) {
-            //i += 1;
+        while (isValid == 0) {
             //Check if the user is attempting to access system-level memory
             if (mode == 0 && PC > 999) {
                 printf("Error: User attempting to access system-level memory.\n");
                 isValid = 1;
                 break;
+            }
+            
+            //Check if we are in user mode and if a timeout occurred in an interrupt that occurred immediately before it
+            //Also to check if timeout occurred (if timerLength instructions have executed)
+            if (mode == 0 && (instructionsExecuted == timerLength || timeoutDuringInterrupt == 1)) {
+                //Reset values
+                if (instructionsExecuted == timerLength) {
+                    instructionsExecuted = 0;
+                }
+                
+                if (timeoutDuringInterrupt == 1) {
+                    timeoutDuringInterrupt = -1;
+                }
+                
+                //Go to interrupt handler
+                
+                //Entering kernel mode
+                mode = 1;
+                
+                //Save PC to system stack
+                //Inform child process that we want to write something to memory
+                int writeAction = 2;
+                if (write(fd1[1], &writeAction, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the address at which we want to write the data to memory
+                //This is where the system stack address starts at
+                int systemStackAddress = 1999;
+                if (write(fd1[1], &systemStackAddress, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the data value which we want to write to memory (PC)
+                if (write(fd1[1], &PC, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;  
+                }
+                
+                //Update system stack address
+                systemStackAddress = systemStackAddress - 1;
+                
+                //Save user SP to system stack
+                //Inform child process that we want to write something to memory
+                if (write(fd1[1], &writeAction, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the address at which we want to write the data to memory
+                if (write(fd1[1], &systemStackAddress, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the data value which we want to write to memory
+                if (write(fd1[1], &SP, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;  
+                }
+                
+                //Update system stack address
+                systemStackAddress = systemStackAddress - 1;
+                
+                
+                //Set PC to system call handler (address 1000)
+                PC = 1000;
+                
+                //Set SP to system SP
+                SP = systemStackAddress;
+                
+                //Save initial user dependency to restore this value later
+                userDependency = dependency;
+                
+                //Set dependency to -1
+                dependency = -1;
+                
+                //Do not increment PC
+                continue;
+            }
+            
+            //Timeout occurred while executing system code
+            if (mode == 1 && instructionsExecuted == timerLength) {
+                timeoutDuringInterrupt = 1;
+                instructionsExecuted = 0;
             }
             
             //Inform child address we want to retrieve something from memory
@@ -242,38 +362,13 @@ int main(int argc, char* argv[]) {
                 break;
             }
             
-            int topVal;
-            //Inform child address we want to retrieve something from memory
-            if (write(fd1[1], &retrieve, sizeof(int)) == -1) {
-                printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
-                isValid = 1;
-                break;
+            //printf("PC: %d, AC: %d, Instruction: %d, X: %d, dependency: %d\n", PC, AC, IR, X, dependency);
+            /*
+            if (PC == 1000) {
+                printf("PC: %d, AC: %d, Instruction: %d, X: %d, dependency: %d\n", PC, AC, IR, X, dependency);
             }
+            */
             
-            
-            int topAddress = SP + 1;
-            //Specify the memory address to the child process whose value we want to retrieve
-            if (write(fd1[1], &topAddress, sizeof(int)) == -1) {
-                printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
-                isValid = 1;
-                break;
-            }
-            
-            //Load the instruction at memory address PC into the IR
-            int topValRes = read(fd2[0], &topVal, sizeof(int));
-            
-            if (topValRes == -1) {
-                printf("Error: There was an error while the parent process was reading. %s\n", strerror(errno));
-                isValid = 1;
-                break;
-            }
-            else if (topValRes == 0) {
-                printf("EOF reached in child process. Terminating parent...");
-                isValid = 1;
-                break;
-            }
-            
-            //printf("PC: %d, AC: %d, Instruction: %d, X: %d, SP + 1: %d, top: %d, dependency: %d\n", PC, AC, IR, X, SP + 1, topVal, dependency);
             
             //If the previous instruction accepts an argument
             if (dependency != -1) {
@@ -281,58 +376,25 @@ int main(int argc, char* argv[]) {
                     //store value in IR into the AC
                     AC = IR;
                 }
-                else if (dependency == 2) {
-                    //Load addr --> get the value in addr from child and store in AC --> addr = IR value
-                    
-                    //Check if we are in user mode and accessing system-level memory
-                    if (mode == 0 && IR > 999) {
-                        printf("Error: User attempting to access system-level memory.\n");
-                        isValid = 1;
-                        break;
-                    }
-                    
-                    //Inform child address we want to retrieve something from memory
-                    int retrieve = 1;
-                    if (write(fd1[1], &retrieve, sizeof(int)) == -1) {
-                        printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
-                        isValid = 1;
-                        break;
-                    }
-                    
-                    //Specify to child process we want to retrieve the value at memory address IR
-                    if (write(fd1[1], &IR, sizeof(int)) == -1) {
-                        printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
-                        isValid = 1;
-                        break;
-                    }
-                    
-                    //Load the value at address IR into the AC
-                    int loadInstructionRes = read(fd2[0], &AC, sizeof(int));
-            
-                    if (loadInstructionRes == -1) {
-                        printf("Error: There was an error while the parent process was reading. %s\n", strerror(errno));
-                        isValid = 1;
-                        break;
-                    }
-                    else if (loadInstructionRes == 0) {
-                        printf("EOF reached in child process. Terminating parent...");
-                        isValid = 1;
-                        break;
-                    }
-                }
-                else if (dependency == 3) {
-                    //LoadInd addr --> x = IR value --> get value in memory address x and store it in AC
-                }
-                else if (dependency == 4 || dependency == 5) {
-                    //LoadIdxX addr --> z = value in IR + value in X/Y register --> store value in address z in AC
+                else if (dependency == 2 || dependency == 3 || dependency == 4 || dependency == 5) {
+                    //Instruction 2: load value at memory address IR into AC
+                    //Instruction 3: temp = value at memory address IR --> load the value in memory address temp into AC
+                    //Instruction 4: load value at  memory address IR + X into AC
+                    //Instruction 5: load value at memory address IR + Y into AC
                     
                     //The target address whose value we want to retrieve
                     int targetAddress;
                     
-                    if (dependency == 4) {
+                    if (dependency == 2 || dependency == 3) {
+                        //Memory address IR
+                        targetAddress = IR;
+                    }
+                    else if (dependency == 4) {
+                        //Memory address IR + X
                         targetAddress = IR + X;
                     }
                     else {
+                        //Memory address IR + Y
                         targetAddress = IR + Y;
                     }
                     
@@ -358,8 +420,9 @@ int main(int argc, char* argv[]) {
                         break;
                     }
                     
-                    //Load the value at address targetAddress into the AC
-                    int loadTargetAddressRes = read(fd2[0], &AC, sizeof(int));
+                    //Load the value at address targetAddress into the memoryAddressValue
+                    int memoryAddressValue;
+                    int loadTargetAddressRes = read(fd2[0], &memoryAddressValue, sizeof(int));
             
                     if (loadTargetAddressRes== -1) {
                         printf("Error: There was an error while the parent process was reading. %s\n", strerror(errno));
@@ -371,9 +434,82 @@ int main(int argc, char* argv[]) {
                         isValid = 1;
                         break;
                     }
+                    
+                    if (dependency == 2 || dependency == 4 || dependency == 5) {
+                        //For these instructions simply load into the AC
+                        AC = memoryAddressValue;
+                    }
+                    else {
+                        //For instruction 3 we need to repeat the process
+                        int nextAddress = memoryAddressValue;
+                        
+                        //Check if we are in user mode and accessing system level memory
+                        if (mode == 0 && nextAddress > 999) {
+                            printf("Error: User attempting to access system-level memory.\n");
+                            isValid = 1;
+                            break;
+                        }
+                    
+                        //Inform child process that we want to retrieve something from memory
+                        if (write(fd1[1], &retrieve, sizeof(int)) == -1) {
+                            printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                            isValid = 1;
+                            break;
+                        }
+                    
+                        //Specify to child process we want to retrieve the value at memory address targetAddress
+                        if (write(fd1[1], &nextAddress, sizeof(int)) == -1) {
+                            printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                            isValid = 1;
+                            break;
+                        }
+                    
+                        //Load the value at address nextAddress into the AC
+                        int loadNextAddressRes = read(fd2[0], &AC, sizeof(int));
+            
+                        if (loadNextAddressRes== -1) {
+                            printf("Error: There was an error while the parent process was reading. %s\n", strerror(errno));
+                            isValid = 1;
+                            break;
+                        }
+                        else if (loadNextAddressRes == 0) {
+                            printf("EOF reached in child process. Terminating parent...");
+                            isValid = 1;
+                            break;
+                        }
+                    }
                 }
                 else if (dependency == 7) {
                     //Store addr --> store the value in AC into the memory address IR
+                    
+                    //Check if user mode is accessing system-level memory
+                    if (mode == 0 && IR > 999) {
+                        printf("Error: User attempting to access system-level memory.\n");
+                        isValid = 1;
+                        break;
+                    }
+                    
+                    //Inform child process that we want to write something to memory
+                    int writeToMemory = 2;
+                    if (write(fd1[1], &writeToMemory, sizeof(int)) == -1) {
+                        printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                        isValid = 1;
+                        break;
+                    }
+                    
+                    //Specify the memory address we wish to write to (IR)
+                    if (write(fd1[1], &IR, sizeof(int)) == -1) {
+                        printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                        isValid = 1;
+                        break;
+                    }
+                    
+                    //Specify the data we wish to write at this address (AC value)
+                    if (write(fd1[1], &AC, sizeof(int)) == -1) {
+                        printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                        isValid = 1;
+                        break;
+                    }
                 }
                 else if (dependency == 9) {
                     //Put port --> if IR is 1 write print AC as an int --> if IR is 2 print the ASCII char corresponding to AC
@@ -406,6 +542,7 @@ int main(int argc, char* argv[]) {
                     
                     //Do not increment PC
                     dependency = -1;
+                    instructionsExecuted = instructionsExecuted + 1;
                     continue;
                 }
                 else if (dependency == 21 || dependency == 22) {
@@ -425,6 +562,7 @@ int main(int argc, char* argv[]) {
                         
                         //Do not increment PC
                         dependency = -1;
+                        instructionsExecuted = instructionsExecuted + 1;
                         continue;
                     }
                 }
@@ -472,12 +610,14 @@ int main(int argc, char* argv[]) {
                     
                     //Do not increment PC
                     dependency = -1;
+                    instructionsExecuted = instructionsExecuted + 1;
                     continue;
                 }
                 
-                //Continue to next iteration by setting by resetting dependency and incrementing the PC register
+                //Continue to next iteration by setting by resetting dependency and incrementing the PC register and instructions executed
                 dependency = -1;
                 PC = PC + 1;
+                instructionsExecuted = instructionsExecuted + 1;
                 continue;
             }
             
@@ -572,7 +712,9 @@ int main(int argc, char* argv[]) {
             }
             else if (IR == 19) {
                 //Copy the value of SP to AC
-                AC = SP;
+
+                //Adding 1 since SP is the next memory address where a data value can be added to the stack
+                AC = SP + 1;
             }
             else if (IR == 24 || IR == 28) {
                 //Pop data value from stack
@@ -621,6 +763,7 @@ int main(int argc, char* argv[]) {
                     //Jump to the popped value address
                     PC = poppedStackValue;
                     //Do not increment PC
+                    instructionsExecuted = instructionsExecuted + 1;
                     continue;
                 }
                 else {
@@ -664,9 +807,175 @@ int main(int argc, char* argv[]) {
                 //Update the SP
                 SP = SP - 1;
             }
+            else if (IR == 29) {
+                //System call
+                
+                //Entering kernel mode
+                mode = 1;
+                //Increment PC because this will be where we return in the user program after the system call finishes
+                PC = PC + 1;
+                
+                //Save PC to system stack
+                //Inform child process that we want to write something to memory
+                int writeAction = 2;
+                if (write(fd1[1], &writeAction, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the address at which we want to write the data to memory
+                //This is where the system stack address starts at
+                int systemStackAddress = 1999;
+                if (write(fd1[1], &systemStackAddress, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the data value which we want to write to memory (PC)
+                if (write(fd1[1], &PC, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;  
+                }
+                
+                //Update system stack address
+                systemStackAddress = systemStackAddress - 1;
+                
+                //Save user SP to system stack
+                //Inform child process that we want to write something to memory
+                if (write(fd1[1], &writeAction, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the address at which we want to write the data to memory
+                if (write(fd1[1], &systemStackAddress, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                    
+                //Specify the data value which we want to write to memory
+                if (write(fd1[1], &SP, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;  
+                }
+                
+                //Update system stack address
+                systemStackAddress = systemStackAddress - 1;
+                
+                //Set PC to system call handler (address 1500)
+                PC = 1500;
+                
+                //Set SP to system SP
+                SP = systemStackAddress;
+                
+                //Save initial user dependency to restore this value later
+                userDependency = dependency;
+                
+                //Set dependency to -1
+                dependency = -1;
+                
+                //Do not increment PC
+                //Do not allow interrupt after this instruction
+                instructionsExecuted = (instructionsExecuted + 1) % timerLength;
+                continue;
+            }
+            else if (IR == 30) {
+                //Return from system call
+                
+                //Pop user SP from system stack
+                //Inform child address we want to retrieve something from memory
+                int retrieve = 1;
+                if (write(fd1[1], &retrieve, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                
+                //Last data value that was added to the stack
+                int addressToRetrieve = SP + 1;
+                //Specify the memory address to the child process whose value we want to retrieve
+                if (write(fd1[1], &addressToRetrieve, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                
+                int userSP;
+                //Load the popped node data value into the userSP variable
+                int stackPopRes = read(fd2[0], &userSP, sizeof(int));
+            
+                if (stackPopRes == -1) {
+                    printf("Error: There was an error while the parent process was reading. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                else if (stackPopRes == 0) {
+                    printf("EOF reached in child process. Terminating parent...");
+                    isValid = 1;
+                    break;
+                }
+                
+                //Update the SP
+                SP = SP + 1;
+                
+                //Pop user PC from system stack
+                //Inform child address we want to retrieve something from memory
+                if (write(fd1[1], &retrieve, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                
+                //Last data value that was added to the stack
+                int addressToRetrieve2 = SP + 1;
+                //Specify the memory address to the child process whose value we want to retrieve
+                if (write(fd1[1], &addressToRetrieve2, sizeof(int)) == -1) {
+                    printf("Error: There was an error while the parent process was writing. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                
+                int userPC;
+                //Load the popped node data value into the userPC variable
+                int stackPopRes2 = read(fd2[0], &userPC, sizeof(int));
+            
+                if (stackPopRes2 == -1) {
+                    printf("Error: There was an error while the parent process was reading. %s\n", strerror(errno));
+                    isValid = 1;
+                    break;
+                }
+                else if (stackPopRes2 == 0) {
+                    printf("EOF reached in child process. Terminating parent...");
+                    isValid = 1;
+                    break;
+                }
+                
+                //Restore user PC and user SP registers, also restore user dependency
+                PC = userPC;
+                SP = userSP;
+                
+                dependency = userDependency;
+                userDependency = -1;
+                
+                //Entering user mode
+                mode = 0;
+                
+                //Do not increment PC
+                instructionsExecuted = instructionsExecuted + 1;
+                continue;
+            }
             
             //Increment the PC to the next instruction address
             PC = PC + 1;
+            
+            //Increment the number of instructions executed
+            instructionsExecuted = instructionsExecuted + 1;
         }
     }
     
