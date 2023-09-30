@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
                 break;
             }
             else if (actionRes == 0) {
-                printf("EOF reached in parent process. Terminating child...");
+                //printf("EOF reached in parent process. Terminating child...");
                 isValid = 1;
                 break;
             }
@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (addressRes1 == 0) {
-                    printf("EOF reached in parent process. Terminating child...");
+                    //printf("EOF reached in parent process. Terminating child...");
                     isValid = 1;
                     break;
                 }
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (addressRes2 == 0) {
-                    printf("EOF reached in parent process. Terminating child...");
+                    //printf("EOF reached in parent process. Terminating child...");
                     isValid = 1;
                     break;
                 }
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (addressRes2 == 0) {
-                    printf("EOF reached in parent process. Terminating child...");
+                    //printf("EOF reached in parent process. Terminating child...");
                     isValid = 1;
                     break;
                 }
@@ -357,7 +357,7 @@ int main(int argc, char* argv[]) {
                 break;
             }
             else if (loadInstructionRes == 0) {
-                printf("EOF reached in child process. Terminating parent...");
+                //printf("EOF reached in child process. Terminating parent...");
                 isValid = 1;
                 break;
             }
@@ -430,7 +430,7 @@ int main(int argc, char* argv[]) {
                         break;
                     }
                     else if (loadTargetAddressRes == 0) {
-                        printf("EOF reached in child process. Terminating parent...");
+                        //printf("EOF reached in child process. Terminating parent...");
                         isValid = 1;
                         break;
                     }
@@ -473,7 +473,7 @@ int main(int argc, char* argv[]) {
                             break;
                         }
                         else if (loadNextAddressRes == 0) {
-                            printf("EOF reached in child process. Terminating parent...");
+                            //printf("EOF reached in child process. Terminating parent...");
                             isValid = 1;
                             break;
                         }
@@ -665,7 +665,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (loadSpxRes == 0) {
-                    printf("EOF reached in child process. Terminating parent...");
+                    //printf("EOF reached in child process. Terminating parent...");
                     isValid = 1;
                     break;
                 }
@@ -751,7 +751,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (stackPopRes == 0) {
-                    printf("EOF reached in child process. Terminating parent...");
+                    //printf("EOF reached in child process. Terminating parent...");
                     isValid = 1;
                     break;
                 }
@@ -916,7 +916,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (stackPopRes == 0) {
-                    printf("EOF reached in child process. Terminating parent...");
+                    //printf("EOF reached in child process. Terminating parent...");
                     isValid = 1;
                     break;
                 }
@@ -951,7 +951,7 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 else if (stackPopRes2 == 0) {
-                    printf("EOF reached in child process. Terminating parent...");
+                    //printf("EOF reached in child process. Terminating parent...");
                     isValid = 1;
                     break;
                 }
