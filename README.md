@@ -11,7 +11,7 @@ Parent Process - Acts as the CPU for decoding and executing fetched instructions
 ### How to Run:
 All the code is in the `main.c` file. The input instructions should be placed in the `input.txt` file.
 
-In the input.txt file, do not include any leading spaces within an instruction or else it will not be read.
+In the `input.txt` file, do not include any leading spaces within an instruction or else it will not be read.
 
 Once you place your instructions within the `input.txt` file, run the following commands:
 
