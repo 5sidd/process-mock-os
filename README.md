@@ -9,6 +9,7 @@ Child Process - Acts memory for reading the input instructions. This process als
 Parent Process - Acts as the CPU for decoding and executing fetched instructions.
 
 These are the different registers within the system:
+
     PC: Program Counter
     SP: Stack Pointer
     IR: Instruction Register
