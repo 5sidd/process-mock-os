@@ -33,28 +33,28 @@ The following is the instruction set that can be executed by the CPU:
     7 = Store addr: Store the value in the AC into the address
     8 = Get: Gets a random int from 1 to 100 into the AC
     9 = Put port: If port=1, writes AC as an int to the screen. If port=2, write the char value that maps to the number in the AC (for example if AC = 65, print "A").
-   10 = AddX: Add the value in X to the AC
-   11 = AddY: Add the value in Y to the AC
-   12 = SubX: Subtract the value in X from the AC
-   13 = SubY: Subtract the value in Y from the AC
-   14 = CopyToX: Copy the value in the AC to X
-   15 = CopyFromX: Copy the value in X to the AC
-   16 = CopyToY: Copy the value in the AC to Y
-   17 = CopyFromY: Copy the value in Y to the AC
-   18 = CopyToSp: Copy the value in AC to the SP
-   19 = CopyFromSp: Copy the value in SP to the AC    
-   20 = Jump addr: Jump to the address
-   21 = JumpIfEqual addr: Jump to the address only if the value in the AC is zero
-   22 = JumpIfNotEqual addr: Jump to the address only if the value in the AC is not zero
-   23 = Call addr: Push return address onto stack, jump to the address
-   24 = Ret: Pop return address from the stack, jump to the address
-   25 = IncX: Increment the value in X
-   26 = DecX: Decrement the value in X
-   27 = Push: Push AC onto stack
-   28 = Pop: Pop from stack into AC
-   29 = Int: Perform system call
-   30 = IRet: Return from system call
-   50 = End: End execution
+    10 = AddX: Add the value in X to the AC
+    11 = AddY: Add the value in Y to the AC
+    12 = SubX: Subtract the value in X from the AC
+    13 = SubY: Subtract the value in Y from the AC
+    14 = CopyToX: Copy the value in the AC to X
+    15 = CopyFromX: Copy the value in X to the AC
+    16 = CopyToY: Copy the value in the AC to Y
+    17 = CopyFromY: Copy the value in Y to the AC
+    18 = CopyToSp: Copy the value in AC to the SP
+    19 = CopyFromSp: Copy the value in SP to the AC    
+    20 = Jump addr: Jump to the address
+    21 = JumpIfEqual addr: Jump to the address only if the value in the AC is zero
+    22 = JumpIfNotEqual addr: Jump to the address only if the value in the AC is not zero
+    23 = Call addr: Push return address onto stack, jump to the address
+    24 = Ret: Pop return address from the stack, jump to the address
+    25 = IncX: Increment the value in X
+    26 = DecX: Decrement the value in X
+    27 = Push: Push AC onto stack
+    28 = Pop: Pop from stack into AC
+    29 = Int: Perform system call
+    30 = IRet: Return from system call
+    50 = End: End execution
    
 ### How to Run:
 All the code is in the `main.c` file. The input instructions should be placed in the `input.txt` file.
